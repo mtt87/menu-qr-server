@@ -49,7 +49,7 @@ app.use((err, req, res, next) => {
 
 const getBearerToken = (token) => token.split('Bearer ')[1];
 
-app.get('/api/restaurants', async (req, res) => {
+app.get('/restaurants', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
     return;
@@ -80,7 +80,7 @@ app.get('/api/restaurants', async (req, res) => {
   res.send(data);
 });
 
-app.post('/api/restaurants', async (req, res) => {
+app.post('/restaurants', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
     return;
@@ -100,7 +100,7 @@ app.post('/api/restaurants', async (req, res) => {
   }
 });
 
-app.delete('/api/restaurants/:restaurantId', async (req, res) => {
+app.delete('/restaurants/:restaurantId', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
     return;
@@ -131,7 +131,7 @@ app.delete('/api/restaurants/:restaurantId', async (req, res) => {
   }
 });
 
-app.put('/api/restaurants/:restaurantId', async (req, res) => {
+app.put('/restaurants/:restaurantId', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
     return;
@@ -162,7 +162,7 @@ app.put('/api/restaurants/:restaurantId', async (req, res) => {
   }
 });
 
-app.post('/api/restaurants/:restaurantId/uploads', upload.single('image'), async (req, res) => {
+app.post('/restaurants/:restaurantId/uploads', upload.single('image'), async (req, res) => {
   console.log(req.file);
   // upload image on s3
   res.send();
