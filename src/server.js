@@ -49,6 +49,8 @@ app.use((err, req, res, next) => {
 
 const getBearerToken = (token) => token.split('Bearer ')[1];
 
+app.get('/', (req, res) => res.send('hello world'));
+
 app.get('/restaurants', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
