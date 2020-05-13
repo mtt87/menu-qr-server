@@ -6,10 +6,12 @@ const cors = require('cors');
 const QRCode = require('qrcode');
 // const moment = require('moment');
 const multer = require('multer');
+const multerS3 = require('multer-s3');
 // const path = require('path');
 
 const db = require('./models');
 const jwtMiddleware = require('./jwtMiddleware');
+const s3 = require('./s3');
 
 const app = express();
 
@@ -26,14 +28,22 @@ if (process.env.NODE_ENV === 'production') {
   app.use(forceSsl);
 }
 
-const storage = multer.memoryStorage();
+// const storage = multer.memoryStorage();
 const fileSize = 1024 * 1024 * 5; // 5mb
 
 const upload = multer({
   limits: {
     fileSize,
   },
-  storage,
+  storage: multerS3({
+    s3,
+    bucket: 'view.menu-qr.tech',
+    acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      cb(null, `${file.originalname}_${Date.now()}`);
+    },
+  }),
 });
 
 app.use(bodyParser.json());
@@ -167,8 +177,8 @@ app.put('/restaurants/:restaurantId', async (req, res) => {
 
 app.get('/view-qr/:uploadId', async (req, res) => {
   const { uploadId } = req.params;
-  const { imageUrl } = await db.Upload.findByPk(uploadId);
-  QRCode.toFileStream(res, imageUrl, {
+  const { cdnUrl } = await db.Upload.findByPk(uploadId);
+  QRCode.toFileStream(res, cdnUrl, {
     width: 512,
     margin: 0,
   });
@@ -176,24 +186,22 @@ app.get('/view-qr/:uploadId', async (req, res) => {
 
 app.get('/download-qr/:uploadId', async (req, res) => {
   const { uploadId } = req.params;
-  const { imageUrl } = await db.Upload.findByPk(uploadId);
+  const { cdnUrl } = await db.Upload.findByPk(uploadId);
   res.attachment('qr-menu.png');
-  QRCode.toFileStream(res, imageUrl, {
+  QRCode.toFileStream(res, cdnUrl, {
     width: 1024,
     margin: 2,
   });
 });
 
 app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req, res) => {
-  console.log(req.file);
   if (!req.file) {
     res.sendStatus(400);
     return;
   }
   const userId = req.user.sub;
-  const { originalname } = req.file;
+  const { originalname, key, location } = req.file;
   const { restaurantId } = req.params;
-  // upload image on s3
   try {
     const User = await db.User.findByPk(userId, {
       include: [
@@ -211,7 +219,9 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
     const newUpload = {
       id: uuid(),
       name: originalname,
-      imageUrl: 'https://www.google.com',
+      s3Key: key,
+      s3Url: location,
+      cdnUrl: `${process.env.CDN_URL}/${key}`,
     };
     const Upload = await db.Upload.create(newUpload);
     await Restaurant.addUpload(Upload);

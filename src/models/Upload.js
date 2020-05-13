@@ -8,7 +8,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(128),
       allowNull: true,
     },
-    imageUrl: {
+    s3Key: {
+      type: DataTypes.STRING(128),
+      allowNull: true,
+    },
+    s3Url: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
+    cdnUrl: {
       type: DataTypes.STRING(512),
       allowNull: false,
     },
