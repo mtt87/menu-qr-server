@@ -62,6 +62,7 @@ const getBearerToken = (token) => token.split('Bearer ')[1];
 
 app.get('/', (req, res) => res.send('hello world'));
 
+// Restaurants
 app.get('/restaurants', async (req, res) => {
   if (!req.user) {
     res.sendStatus(401);
@@ -175,6 +176,7 @@ app.put('/restaurants/:restaurantId', async (req, res) => {
   }
 });
 
+// QR
 app.get('/view-qr/:uploadId', async (req, res) => {
   const { uploadId } = req.params;
   const { cdnUrl } = await db.Upload.findByPk(uploadId);
@@ -194,6 +196,7 @@ app.get('/download-qr/:uploadId', async (req, res) => {
   });
 });
 
+// Uploads
 app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req, res) => {
   if (!req.file) {
     res.sendStatus(400);
@@ -228,6 +231,16 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
     res.sendStatus(201);
   } catch (err) {
     //
+  }
+});
+
+app.get('/view/:uploadId', async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const { cdnUrl } = await db.Upload.findByPk(uploadId);
+    res.send({ url: cdnUrl });
+  } catch (err) {
+    res.sendStatus(400);
   }
 });
 
