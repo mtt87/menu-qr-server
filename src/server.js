@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const { v4: uuid } = require('uuid');
 const request = require('superagent');
 const cors = require('cors');
+const QRCode = require('qrcode');
 // const moment = require('moment');
 const multer = require('multer');
 // const path = require('path');
@@ -164,10 +165,60 @@ app.put('/restaurants/:restaurantId', async (req, res) => {
   }
 });
 
-app.post('/restaurants/:restaurantId/uploads', upload.single('image'), async (req, res) => {
+app.get('/view-qr/:uploadId', async (req, res) => {
+  const { uploadId } = req.params;
+  const { imageUrl } = await db.Upload.findByPk(uploadId);
+  QRCode.toFileStream(res, imageUrl, {
+    width: 512,
+    margin: 0,
+  });
+});
+
+app.get('/download-qr/:uploadId', async (req, res) => {
+  const { uploadId } = req.params;
+  const { imageUrl } = await db.Upload.findByPk(uploadId);
+  res.attachment('qr-menu.png');
+  QRCode.toFileStream(res, imageUrl, {
+    width: 1024,
+    margin: 2,
+  });
+});
+
+app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req, res) => {
   console.log(req.file);
+  if (!req.file) {
+    res.sendStatus(400);
+    return;
+  }
+  const userId = req.user.sub;
+  const { originalname } = req.file;
+  const { restaurantId } = req.params;
   // upload image on s3
-  res.send();
+  try {
+    const User = await db.User.findByPk(userId, {
+      include: [
+        {
+          model: db.Restaurant,
+          include: db.Upload,
+        },
+      ],
+    });
+    if (!User.Restaurants.find((r) => r.id === restaurantId)) {
+      res.sendStatus(403);
+      return;
+    }
+    const Restaurant = await db.Restaurant.findByPk(restaurantId);
+    const newUpload = {
+      id: uuid(),
+      name: originalname,
+      imageUrl: 'https://www.google.com',
+    };
+    const Upload = await db.Upload.create(newUpload);
+    await Restaurant.addUpload(Upload);
+    res.sendStatus(201);
+  } catch (err) {
+    //
+  }
 });
 
 module.exports = app;
