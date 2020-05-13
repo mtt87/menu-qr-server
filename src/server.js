@@ -7,7 +7,7 @@ const QRCode = require('qrcode');
 // const moment = require('moment');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-// const path = require('path');
+const path = require('path');
 
 const db = require('./models');
 const jwtMiddleware = require('./jwtMiddleware');
@@ -34,6 +34,13 @@ const fileSize = 1024 * 1024 * 5; // 5mb
 const upload = multer({
   limits: {
     fileSize,
+  },
+  fileFilter: (req, file, callback) => {
+    const ext = path.extname(file.originalname);
+    if (ext !== '.png' && ext !== '.jpg' && ext !== '.pdf' && ext !== '.jpeg') {
+      return callback(new Error('Solo PDF e immagini'));
+    }
+    callback(null, true);
   },
   storage: multerS3({
     s3,
@@ -179,8 +186,8 @@ app.put('/restaurants/:restaurantId', async (req, res) => {
 // QR
 app.get('/view-qr/:uploadId', async (req, res) => {
   const { uploadId } = req.params;
-  const { cdnUrl } = await db.Upload.findByPk(uploadId);
-  QRCode.toFileStream(res, cdnUrl, {
+  const url = `https://view.menu-qr.tech/?id=${uploadId}`;
+  QRCode.toFileStream(res, url, {
     width: 512,
     margin: 0,
   });
@@ -188,9 +195,9 @@ app.get('/view-qr/:uploadId', async (req, res) => {
 
 app.get('/download-qr/:uploadId', async (req, res) => {
   const { uploadId } = req.params;
-  const { cdnUrl } = await db.Upload.findByPk(uploadId);
+  const url = `https://view.menu-qr.tech/?id=${uploadId}`;
   res.attachment('qr-menu.png');
-  QRCode.toFileStream(res, cdnUrl, {
+  QRCode.toFileStream(res, url, {
     width: 1024,
     margin: 2,
   });
@@ -228,6 +235,40 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
     };
     const Upload = await db.Upload.create(newUpload);
     await Restaurant.addUpload(Upload);
+    res.sendStatus(201);
+  } catch (err) {
+    //
+  }
+});
+
+app.put('/restaurants/:restaurantId/uploads/:uploadId', upload.single('menu'), async (req, res) => {
+  if (!req.file) {
+    res.sendStatus(400);
+    return;
+  }
+  const userId = req.user.sub;
+  const { originalname, key, location } = req.file;
+  const { restaurantId, uploadId } = req.params;
+  try {
+    const User = await db.User.findByPk(userId, {
+      include: [
+        {
+          model: db.Restaurant,
+          include: db.Upload,
+        },
+      ],
+    });
+    if (!User.Restaurants.find((r) => r.id === restaurantId)) {
+      res.sendStatus(403);
+      return;
+    }
+    const Upload = await db.Upload.findByPk(uploadId);
+    await Upload.update({
+      name: originalname,
+      s3Key: key,
+      s3Url: location,
+      cdnUrl: `${process.env.CDN_URL}/${key}`,
+    });
     res.sendStatus(201);
   } catch (err) {
     //
