@@ -38,7 +38,8 @@ const upload = multer({
   fileFilter: (req, file, callback) => {
     const ext = path.extname(file.originalname);
     if (ext !== '.png' && ext !== '.jpg' && ext !== '.pdf' && ext !== '.jpeg') {
-      return callback(new Error('Solo PDF e immagini'));
+      callback(new Error('Solo PDF e immagini'));
+      return;
     }
     callback(null, true);
   },
@@ -212,6 +213,7 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
   const userId = req.user.sub;
   const { originalname, key, location } = req.file;
   const { restaurantId } = req.params;
+  const { type } = req.body;
   try {
     const User = await db.User.findByPk(userId, {
       include: [
@@ -231,6 +233,7 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
       name: originalname,
       s3Key: key,
       s3Url: location,
+      type,
       cdnUrl: `${process.env.CDN_URL}/${key}`,
     };
     const Upload = await db.Upload.create(newUpload);
@@ -238,6 +241,8 @@ app.post('/restaurants/:restaurantId/uploads', upload.single('menu'), async (req
     res.sendStatus(201);
   } catch (err) {
     //
+    console.error(err);
+    res.sendStatus(500);
   }
 });
 
@@ -271,7 +276,39 @@ app.put('/restaurants/:restaurantId/uploads/:uploadId', upload.single('menu'), a
     });
     res.sendStatus(201);
   } catch (err) {
-    //
+    console.error(err);
+    res.sendStatus(500);
+  }
+});
+
+app.delete('/restaurants/:restaurantId/uploads/:uploadId', async (req, res) => {
+  const userId = req.user.sub;
+  const { restaurantId, uploadId } = req.params;
+  try {
+    const User = await db.User.findByPk(userId, {
+      include: [
+        {
+          model: db.Restaurant,
+          include: db.Upload,
+        },
+      ],
+    });
+    if (!User.Restaurants.find((r) => r.id === restaurantId)) {
+      res.sendStatus(403);
+      return;
+    }
+    const Upload = await db.Upload.findByPk(uploadId);
+    await s3
+      .deleteObject({
+        Bucket: 'view.menu-qr.tech',
+        Key: Upload.s3Key,
+      })
+      .promise();
+    await Upload.destroy();
+    res.sendStatus(200);
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
   }
 });
 
