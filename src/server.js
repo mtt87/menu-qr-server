@@ -87,7 +87,7 @@ app.get('/restaurants', async (req, res) => {
     const newUser = {
       id: userId,
       email,
-      subscriptionType: 'TRIAL',
+      subscriptionStatus: 'TRIAL',
     };
     await db.User.create(newUser);
   }
@@ -323,9 +323,23 @@ app.delete('/restaurants/:restaurantId/uploads/:uploadId', async (req, res) => {
 app.get('/view/:uploadId', async (req, res) => {
   try {
     const { uploadId } = req.params;
-    const { cdnUrl } = await db.Upload.findByPk(uploadId);
-    res.send({ url: cdnUrl });
+    const Upload = await db.Upload.findByPk(uploadId, {
+      include: {
+        model: db.Restaurant,
+        attributes: ['id'],
+        include: {
+          model: db.User,
+          attributes: ['subscriptionStatus'],
+        },
+      },
+    });
+    if (Upload.Restaurant.User.subscriptionStatus === 'EXPIRED') {
+      res.sendStatus(403);
+      return;
+    }
+    res.send({ url: Upload.cdnUrl });
   } catch (err) {
+    console.error(err);
     res.sendStatus(400);
   }
 });

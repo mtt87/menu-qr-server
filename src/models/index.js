@@ -21,7 +21,9 @@ const db = {
 };
 
 db.User.hasMany(db.Restaurant);
+db.Restaurant.belongsTo(db.User);
 db.User.hasMany(db.Transaction);
 db.Restaurant.hasMany(db.Upload);
+db.Upload.belongsTo(db.Restaurant);
 
 module.exports = db;

@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(128),
       allowNull: false,
     },
-    subscriptionType: {
+    subscriptionStatus: {
       type: DataTypes.ENUM('FREE', 'TRIAL', 'PAID', 'EXPIRED'),
       allowNull: false,
     },
