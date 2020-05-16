@@ -191,6 +191,10 @@ app.get('/view-qr/:uploadId', async (req, res) => {
   QRCode.toFileStream(res, url, {
     width: 512,
     margin: 0,
+    color: {
+      dark: '#000',
+      light: '#fff',
+    },
   });
 });
 
@@ -201,6 +205,10 @@ app.get('/download-qr/:uploadId', async (req, res) => {
   QRCode.toFileStream(res, url, {
     width: 1024,
     margin: 2,
+    color: {
+      dark: '#000',
+      light: '#fff',
+    },
   });
 });
 

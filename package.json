@@ -9,7 +9,7 @@
     "lint": "eslint ./src"
   },
   "engines": {
-    "node": "12"
+    "node": "14"
   },
   "dependencies": {
     "aws-sdk": "^2.678.0",
