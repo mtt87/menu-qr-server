@@ -8,11 +8,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(128),
       allowNull: false,
     },
+    subscriptionId: {
+      type: DataTypes.STRING(),
+      allowNull: true,
+    },
     subscriptionStatus: {
-      type: DataTypes.ENUM('FREE', 'TRIAL', 'PAID', 'EXPIRED'),
+      type: DataTypes.ENUM('FREE', 'TRIAL', 'PAID', 'EXPIRED', 'CANCELLED'),
       allowNull: false,
     },
-    subscriptionEnds: {
+    subscriptionEnd: {
       type: DataTypes.DATEONLY,
       allowNull: true,
     },

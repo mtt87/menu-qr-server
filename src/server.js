@@ -1,17 +1,22 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const { CronJob } = require('cron');
 const { v4: uuid } = require('uuid');
 const request = require('superagent');
 const cors = require('cors');
+const moment = require('moment');
 const QRCode = require('qrcode');
-// const moment = require('moment');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
 const path = require('path');
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const db = require('./models');
+
+const { Op } = db.Sequelize;
 const jwtMiddleware = require('./jwtMiddleware');
 const s3 = require('./s3');
+
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 const app = express();
 
@@ -54,17 +59,41 @@ const upload = multer({
   }),
 });
 
+// Use JSON parser for all non-webhook routes
+app.use('/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.error('Webhook error', err.message);
+    res.status(400).send(err.message);
+    return;
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const { subscription, client_reference_id: userId } = session;
+      const User = await db.User.findByPk(userId);
+      await User.update({
+        subscriptionId: subscription,
+        subscriptionStatus: 'PAID',
+      });
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error(err);
+    res.status(400).send(err.message);
+  }
+});
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
 app.use('*', jwtMiddleware);
-app.use((err, req, res, next) => {
-  if (err.name === 'UnauthorizedError') {
-    res.status(401).send('invalid token');
-    return;
-  }
-  next();
-});
 
 const getBearerToken = (token) => token.split('Bearer ')[1];
 
@@ -343,5 +372,74 @@ app.get('/view/:uploadId', async (req, res) => {
     res.sendStatus(400);
   }
 });
+
+app.post('/cancel-subscription', async (req, res) => {
+  if (!req.user) {
+    res.sendStatus(401);
+    return;
+  }
+  try {
+    const userId = req.user.sub;
+    const User = await db.User.findByPk(userId);
+    const { subscriptionId } = User;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+    await User.update({
+      subscriptionEnd: moment(subscription.current_period_end).format('yyyy-mm-dd'),
+    });
+    res.sendStatus(200);
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
+  }
+});
+
+const handleCancelledUsers = async () => {
+  console.log('checking cancelled users');
+  try {
+    const expiredUsers = await db.User.findAll({
+      where: {
+        subscriptionEnd: {
+          [Op.lt]: new Date(),
+        },
+      },
+      attributes: ['id'],
+    });
+    if (expiredUsers.length > 0) {
+      const updates = expiredUsers.map((user) => user.update({ subscriptionStatus: 'EXPIRED' }));
+      await Promise.all(updates);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const handleExpiredTrialUsers = async () => {
+  console.log('checking expired trial users');
+  try {
+    const expiredTrialUsers = await db.User.findAll({
+      where: {
+        subscriptionStatus: 'TRIAL',
+        createdAt: {
+          [Op.lt]: moment().subtract(7, 'days').toDate(),
+        },
+      },
+      attributes: ['id'],
+    });
+    if (expiredTrialUsers.length > 0) {
+      const updates = expiredTrialUsers.map((user) =>
+        user.update({ subscriptionStatus: 'EXPIRED' }),
+      );
+      await Promise.all(updates);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const expireCancelledUsersCron = new CronJob('0 1 * * *', handleCancelledUsers);
+const expireTrialUsersCron = new CronJob('0 1 * * *', handleExpiredTrialUsers);
+expireCancelledUsersCron.start();
+expireTrialUsersCron.start();
 
 module.exports = app;
