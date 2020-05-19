@@ -1,6 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { CronJob } = require('cron');
+// const { CronJob } = require('cron');
 const { v4: uuid } = require('uuid');
 const request = require('superagent');
 const cors = require('cors');
@@ -12,7 +12,7 @@ const path = require('path');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const db = require('./models');
 
-const { Op } = db.Sequelize;
+// const { Op } = db.Sequelize;
 const jwtMiddleware = require('./jwtMiddleware');
 const s3 = require('./s3');
 
@@ -394,52 +394,52 @@ app.post('/cancel-subscription', async (req, res) => {
   }
 });
 
-const handleCancelledUsers = async () => {
-  console.log('checking cancelled users');
-  try {
-    const expiredUsers = await db.User.findAll({
-      where: {
-        subscriptionEnd: {
-          [Op.lt]: new Date(),
-        },
-      },
-      attributes: ['id'],
-    });
-    if (expiredUsers.length > 0) {
-      const updates = expiredUsers.map((user) => user.update({ subscriptionStatus: 'EXPIRED' }));
-      await Promise.all(updates);
-    }
-  } catch (err) {
-    console.error(err);
-  }
-};
+// const handleCancelledUsers = async () => {
+//   console.log('checking cancelled users');
+//   try {
+//     const expiredUsers = await db.User.findAll({
+//       where: {
+//         subscriptionEnd: {
+//           [Op.lt]: new Date(),
+//         },
+//       },
+//       attributes: ['id'],
+//     });
+//     if (expiredUsers.length > 0) {
+//       const updates = expiredUsers.map((user) => user.update({ subscriptionStatus: 'EXPIRED' }));
+//       await Promise.all(updates);
+//     }
+//   } catch (err) {
+//     console.error(err);
+//   }
+// };
 
-const handleExpiredTrialUsers = async () => {
-  console.log('checking expired trial users');
-  try {
-    const expiredTrialUsers = await db.User.findAll({
-      where: {
-        subscriptionStatus: 'TRIAL',
-        createdAt: {
-          [Op.lt]: moment().subtract(7, 'days').toDate(),
-        },
-      },
-      attributes: ['id'],
-    });
-    if (expiredTrialUsers.length > 0) {
-      const updates = expiredTrialUsers.map((user) =>
-        user.update({ subscriptionStatus: 'EXPIRED' }),
-      );
-      await Promise.all(updates);
-    }
-  } catch (err) {
-    console.error(err);
-  }
-};
+// const handleExpiredTrialUsers = async () => {
+//   console.log('checking expired trial users');
+//   try {
+//     const expiredTrialUsers = await db.User.findAll({
+//       where: {
+//         subscriptionStatus: 'TRIAL',
+//         createdAt: {
+//           [Op.lt]: moment().subtract(14, 'days').toDate(),
+//         },
+//       },
+//       attributes: ['id'],
+//     });
+//     if (expiredTrialUsers.length > 0) {
+//       const updates = expiredTrialUsers.map((user) =>
+//         user.update({ subscriptionStatus: 'EXPIRED' }),
+//       );
+//       await Promise.all(updates);
+//     }
+//   } catch (err) {
+//     console.error(err);
+//   }
+// };
 
-const expireCancelledUsersCron = new CronJob('0 1 * * *', handleCancelledUsers);
-const expireTrialUsersCron = new CronJob('0 1 * * *', handleExpiredTrialUsers);
-expireCancelledUsersCron.start();
-expireTrialUsersCron.start();
+// const expireCancelledUsersCron = new CronJob('0 1 * * *', handleCancelledUsers);
+// const expireTrialUsersCron = new CronJob('0 1 * * *', handleExpiredTrialUsers);
+// expireCancelledUsersCron.start();
+// expireTrialUsersCron.start();
 
 module.exports = app;
